@@ -1,0 +1,114 @@
+name: Build Diamond Rush Vita (.vpk)
+
+on:
+  workflow_dispatch:
+    inputs:
+      jar_url:
+        description: 'Direct download URL for Diamond-Rush_J2ME_EN_v104-Nokia-N6101.jar (optional)'
+        required: false
+        type: string
+      jar_base64:
+        description: 'Base64 string of the .jar (optional, or use secret JAR_BASE64)'
+        required: false
+        type: string
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+
+jobs:
+  build-vpk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies & audio tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            pkg-config \
+            python3-pil \
+            python3-numpy \
+            fluidsynth \
+            fluid-soundfont-gm
+
+      - name: Obtain game jar
+        run: |
+          JAR_NAME="Diamond-Rush_J2ME_EN_v104-Nokia-N6101.jar"
+
+          if [ -f "$JAR_NAME" ]; then
+            echo "Found $JAR_NAME in repository workspace."
+          elif [ -n "${{ inputs.jar_base64 }}" ]; then
+            echo "Extracting jar from workflow input 'jar_base64'..."
+            echo "${{ inputs.jar_base64 }}" | base64 -d > "$JAR_NAME"
+          elif [ -n "${{ secrets.JAR_BASE64 }}" ]; then
+            echo "Extracting jar from secret 'JAR_BASE64'..."
+            echo "${{ secrets.JAR_BASE64 }}" | base64 -d > "$JAR_NAME"
+          elif [ -n "${{ inputs.jar_url }}" ]; then
+            echo "Downloading jar from provided URL..."
+            curl -fsSL -o "$JAR_NAME" "${{ inputs.jar_url }}"
+          else
+            echo "::error::Game jar not found! Please set JAR_BASE64 in Repository Secrets or provide it via workflow inputs."
+            exit 1
+          fi
+
+          EXPECTED_HASH="4871112043a1dbc57eb3560547e5a2b079a6a2f387da0e466c8039d81ed98e1f"
+          ACTUAL_HASH=$(sha256sum "$JAR_NAME" | awk '{print $1}')
+          if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
+            echo "::error::Invalid jar checksum! Got $ACTUAL_HASH, expected $EXPECTED_HASH."
+            exit 1
+          fi
+          echo "Jar verified successfully."
+
+      - name: Cache VitaSDK
+        id: cache-vitasdk
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/vitasdk
+          key: vitasdk-ubuntu-${{ runner.os }}-v1
+
+      - name: Install VitaSDK & Libraries
+        if: steps.cache-vitasdk.outputs.cache-hit != 'true'
+        run: |
+          export VITASDK=/usr/local/vitasdk
+          sudo mkdir -p $VITASDK
+          sudo chown -R $USER:$USER $VITASDK
+          curl -fsSL https://github.com/vitasdk/vdpm/releases/latest/download/bootstrap-vitasdk.sh | bash
+          export PATH="$VITASDK/bin:$PATH"
+          vdpm install zlib libpng libogg libvorbis flac libmikmod mpg123 opus opusfile sdl2 sdl2_mixer
+
+      - name: Prepare game sources
+        run: |
+          chmod +x tools/prepare.sh
+          bash tools/prepare.sh
+
+      - name: Build Vita .vpk
+        run: |
+          export VITASDK=/usr/local/vitasdk
+          export PATH="$VITASDK/bin:$PATH"
+          chmod +x build.sh
+          bash build.sh vita
+
+      - name: Upload diamondrush.vpk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: diamondrush-vpk
+          path: out/diamondrush.vpk
+          if-no-files-found: error
+
