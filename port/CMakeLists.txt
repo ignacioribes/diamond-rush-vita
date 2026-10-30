@@ -62,6 +62,15 @@ foreach(dir ${RES_DIRS})
   endforeach()
 endforeach()
 
+# Overlay PNGs: packaged into res/overlays/ inside the VPK.
+set(OVERLAY_SRC_DIR "${CMAKE_SOURCE_DIR}/VITA Overlays")
+file(GLOB OVERLAY_PNG_FILES CONFIGURE_DEPENDS "${OVERLAY_SRC_DIR}/*.png")
+foreach(f ${OVERLAY_PNG_FILES})
+  get_filename_component(fname "${f}" NAME)
+  configure_file("${f}" "${CMAKE_BINARY_DIR}/res/overlays/${fname}" COPYONLY)
+  list(APPEND RES_FILES "overlays/${fname}")
+endforeach()
+
 if(VITA)
   target_compile_options(diamondrush PRIVATE -O2)
   target_link_libraries(diamondrush PRIVATE pthread -Wl,-q)  # std::thread (jrt Thread)

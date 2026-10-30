@@ -9,6 +9,10 @@
 #include <cstdlib>
 #include <map>
 
+// stb_image: declaration only (the implementation is compiled once in midp/graphics.cpp).
+#define STBI_NO_STDIO
+#include "../third_party/stb_image.h"
+
 #ifdef __vita__
 #include <psp2/io/stat.h>
 #include <psp2/power.h>
@@ -36,6 +40,18 @@ constexpr int MAX_VOICES = 8;
 constexpr int TAIL_FADE_MS = 120;  // how quickly a clip's synth tail fades once its MIDI has ended
 struct Voice { uint32_t clip = 0; uint64_t start = 0; int ms = -1; bool fading = false; };
 Voice voices[MAX_VOICES];
+
+// Overlays: full-screen (960×544) RGBA PNGs blended on top of every frame.
+// Names must match the PNGs in port/VITA Overlays/ (= res/overlays/ inside the VPK).
+static const char* const OVERLAY_NAMES[] = {
+  "GBA-GBC.Vita",
+  "GB.VITA",
+  "Scanline_Vita",
+  "Trellis_Vita",
+};
+static constexpr int OVERLAY_COUNT = int(sizeof(OVERLAY_NAMES) / sizeof(OVERLAY_NAMES[0]));
+static int curOverlay = -1;          // -1 = none
+static SDL_Texture* overlayTex = nullptr;
 
 #ifdef __vita__
 const char* const RES_ROOT = "app0:res/";
@@ -196,6 +212,7 @@ void shutdown() {
     Mix_CloseAudio();
   }
   if (joy) SDL_JoystickClose(joy);
+  if (overlayTex) { SDL_DestroyTexture(overlayTex); overlayTex = nullptr; }
   if (upTex) SDL_DestroyTexture(upTex);
   if (screenTex) SDL_DestroyTexture(screenTex);
   SDL_DestroyRenderer(renderer);
@@ -242,6 +259,49 @@ bool poll(std::vector<KeyEvent>& out) {
 void setScale(Scale s) { curScale = s; }
 Scale scale() { return curScale; }
 
+// ------------------------------------------------------------------------------------------
+// Overlay
+
+void setOverlay(int index) {
+  if (index == curOverlay) return;
+  if (overlayTex) { SDL_DestroyTexture(overlayTex); overlayTex = nullptr; }
+  curOverlay = index;
+  if (index < 0 || index >= OVERLAY_COUNT) return;
+  std::string path = std::string("overlays/") + OVERLAY_NAMES[index] + ".png";
+  std::vector<uint8_t> data = readResource(path);
+  if (data.empty()) {
+    std::fprintf(stderr, "overlay: missing %s\n", path.c_str());
+    return;
+  }
+  int w = 0, h = 0, n = 0;
+  stbi_uc* rgba = stbi_load_from_memory(data.data(), int(data.size()), &w, &h, &n, 4);
+  if (!rgba) {
+    std::fprintf(stderr, "overlay: decode failed %s\n", path.c_str());
+    return;
+  }
+  // Convert RGBA → ARGB8888 (SDL's native format for the renderer)
+  std::vector<uint32_t> argb(size_t(w) * size_t(h));
+  for (int i = 0; i < w * h; ++i) {
+    const stbi_uc* p = rgba + i * 4;
+    argb[size_t(i)] = uint32_t(p[3]) << 24 | uint32_t(p[0]) << 16 | uint32_t(p[1]) << 8 | p[2];
+  }
+  stbi_image_free(rgba);
+  overlayTex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                                 SDL_TEXTUREACCESS_STATIC, w, h);
+  if (overlayTex) {
+    SDL_SetTextureBlendMode(overlayTex, SDL_BLENDMODE_BLEND);
+    SDL_UpdateTexture(overlayTex, nullptr, argb.data(), w * 4);
+  } else {
+    std::fprintf(stderr, "overlay: SDL_CreateTexture failed: %s\n", SDL_GetError());
+  }
+}
+
+int overlay() { return curOverlay; }
+int overlayCount() { return OVERLAY_COUNT; }
+std::string overlayName(int i) {
+  return (i >= 0 && i < OVERLAY_COUNT) ? OVERLAY_NAMES[i] : "";
+}
+
 void present(const uint32_t* fb, int w, int h) {
   ensureTextures(w, h);
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -267,6 +327,8 @@ void present(const uint32_t* fb, int w, int h) {
     dst = {(DISPLAY_W - dw) / 2, (DISPLAY_H - dh) / 2, dw, dh};
     SDL_RenderCopy(renderer, upTex, nullptr, &dst);
   }
+  // Overlay: blended on top of the game frame, stretched to the full display.
+  if (overlayTex) SDL_RenderCopy(renderer, overlayTex, nullptr, nullptr);
   SDL_RenderPresent(renderer);
 }
 

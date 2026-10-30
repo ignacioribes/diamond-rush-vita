@@ -394,7 +394,7 @@ index b252673..1d953ad 100644
          {0, 32, 1, 33},
          {0, 45, 1, 46},
 -        {0, 33, 1, 50},
-+        {0, 33, 1, 115, 2, 117},  // [port] item 1: DISPLAY (strings 115/116) instead of VIB. ON/OFF (50); item 2: SCALE (117/118)
++        {0, 33, 1, 115, 2, 117, 3, 119},  // [port] item 1: DISPLAY (strings 115/116) instead of VIB. ON/OFF (50); item 2: SCALE (117/118); item 3: OVERLAY (119/120)
          {0, 101, 1, 100}
      };
      // $VF: renamed from: d int[]
@@ -420,18 +420,21 @@ index b252673..1d953ad 100644
  
                  field_568 = method_86("/lang.f", 115);
 +                // [port] strings 115/116: the DISPLAY option that replaces vibration
-+                String[] portStrings = new String[119];
++                String[] portStrings = new String[121];
 +                System.arraycopy(field_568, 0, portStrings, 0, 115);
 +                portStrings[115] = "DISPLAY: WIDE";
 +                portStrings[116] = "DISPLAY: ORIGINAL";
 +                portStrings[117] = "SCALE: FULL";
 +                portStrings[118] = "SCALE: PIXEL";
++                portStrings[119] = "OVERLAY: NONE";
++                portStrings[120] = "OVERLAY: " + field_365.getAppProperty("Port-Overlay").toUpperCase();
 +                // [port] soft-left labels in the bottom-left corner: Vita triangle in front
 +                portStrings[53] = "\ue002 " + portStrings[53];  // Skip
 +                portStrings[98] = "\ue002 " + portStrings[98];  // Continue
 +                field_568 = portStrings;
 +                method_436(5, 1, (short)(portWidescreen() ? 115 : 116));
 +                method_436(5, 2, (short)(portScalePixel() ? 118 : 117));
++                method_436(5, 3, (short)(portOverlayNone() ? 119 : 120));
                  method_446();
                  field_326[18] = method_358("/ui.f", 3);
                  this.field_426 = field_326[18].field_75[2] & 255;
@@ -517,6 +520,14 @@ index b252673..1d953ad 100644
 +                var10001 = 2;
 +                var10002 = (short)(portScalePixel() ? 118 : 117);
                  break;
++            case 3:
++                // [port] OVERLAY: cycle through None and the available overlay PNGs.
++                field_365.platformRequest("port:overlay-next");
++                field_568[120] = "OVERLAY: " + field_365.getAppProperty("Port-Overlay").toUpperCase();
++                var10000 = 5;
++                var10001 = 3;
++                var10002 = (short)(portOverlayNone() ? 119 : 120);
++                break;
              default:
                  return;
 @@ -3347,7 +3400,8 @@ public final class class_9 extends Canvas implements Runnable {
@@ -1861,6 +1872,10 @@ index b252673..1d953ad 100644
 +    private static boolean portWidescreen() {
 +        String var0 = field_365.getAppProperty("Port-Widescreen");
 +        return var0 != null ? var0.equals("1") : SW > 128;
++    }
++
++    private static boolean portOverlayNone() {
++        return "none".equals(field_365.getAppProperty("Port-Overlay"));
 +    }
 +
 +    // [port] horizontal camera limits for the current screen width. A level narrower than the

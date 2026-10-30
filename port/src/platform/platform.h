@@ -45,6 +45,13 @@ void present(const uint32_t* fb, int w, int h);
 void setScale(Scale s);
 Scale scale();
 
+// Overlay: a full-screen (960×544) RGBA PNG blended on top of every frame.
+// index -1 = none, 0..overlayCount()-1 = one of the PNGs in res/overlays/.
+void setOverlay(int index);
+int  overlay();
+int  overlayCount();
+std::string overlayName(int i);  // short name (basename without .png, e.g. "Scanline_Vita")
+
 // Reads a resource ("/icon.png" or "snd/x.ogg"). Empty vector if missing.
 std::vector<uint8_t> readResource(const std::string& name);
 

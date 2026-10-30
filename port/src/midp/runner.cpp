@@ -43,6 +43,7 @@ void loadSettings() {
       int v;
       if (std::sscanf(line, "widescreen=%d", &v) == 1) widescreen = v != 0;
       if (std::sscanf(line, "scale=%d", &v) == 1 && v >= 0 && v <= 1) plat::setScale(plat::Scale(v));
+      if (std::sscanf(line, "overlay=%d", &v) == 1) plat::setOverlay(v);
     }
     std::fclose(f);
   }
@@ -51,7 +52,8 @@ void loadSettings() {
 void saveSettings() {
   std::string path = plat::saveDir() + "settings.cfg";
   if (FILE* f = std::fopen(path.c_str(), "w")) {
-    std::fprintf(f, "widescreen=%d\nscale=%d\n", widescreen ? 1 : 0, int(plat::scale()));
+    std::fprintf(f, "widescreen=%d\nscale=%d\noverlay=%d\n",
+                 widescreen ? 1 : 0, int(plat::scale()), plat::overlay());
     std::fclose(f);
   }
 }
@@ -320,6 +322,16 @@ Ref<String> MIDlet::getAppProperty(Ref<String> key) {
   std::string k = key->utf8();
   if (k == "Port-Widescreen") return String::fromUtf8(midp::widescreen ? "1" : "0");
   if (k == "Port-Scale") return String::fromUtf8(plat::scale() == plat::Scale::Pixel ? "pixel" : "fit");
+  // Overlay: current name ("none" or the overlay basename) and count for the menu.
+  if (k == "Port-Overlay") {
+    int ov = plat::overlay();
+    return String::fromUtf8(ov < 0 ? "none" : plat::overlayName(ov));
+  }
+  if (k == "Port-OverlayCount") return String::fromUtf8(std::to_string(plat::overlayCount()));
+  if (k.size() > 17 && k.substr(0, 17) == "Port-OverlayName-") {
+    int i = std::atoi(k.c_str() + 17);
+    return String::fromUtf8(plat::overlayName(i));
+  }
   // Test hook: DR_UNLOCK=1 opens every stage (the game's own cheat code; see class_9).
   if (k == "Port-Debug-Unlock") return String::fromUtf8(std::getenv("DR_UNLOCK") ? "1" : "0");
   auto it = midp::appProps.find(k);
@@ -337,6 +349,11 @@ jboolean MIDlet::platformRequest(Ref<String> url) {
     midp::saveSettings();
   } else if (u == "port:toggle-scale") {
     plat::setScale(plat::scale() == plat::Scale::Pixel ? plat::Scale::Fit : plat::Scale::Pixel);
+    midp::saveSettings();
+  } else if (u == "port:overlay-next") {
+    // Cycle: -1 (none) → 0 → 1 → … → overlayCount-1 → -1 → …
+    int n = plat::overlayCount();
+    plat::setOverlay((plat::overlay() + 2) % (n + 1) - 1);
     midp::saveSettings();
   }
   return false;
