@@ -71,7 +71,7 @@ if [ ! -d java-src ]; then
   echo "[2/3] Applying port patch (including overlays)..."
   (
     cd java-src
-    git apply --whitespace=nowarn ../patches/java-src.patch
+    git apply --recount --whitespace=nowarn ../patches/java-src.patch
   )
 else
   echo "java-src/ already exists, skipping decompile and patch."
