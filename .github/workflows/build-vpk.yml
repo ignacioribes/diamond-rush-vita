@@ -11,11 +11,6 @@ on:
         description: 'Decryption password for game.enc (if not using secret JAR_PASSWORD)'
         required: false
         type: string
-  push:
-    branches: [ main, master ]
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
 
 jobs:
   build-vpk:
