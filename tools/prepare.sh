@@ -29,10 +29,33 @@ if [ ! -f env/vineflower.jar ]; then
   curl -fsSL -o env/vineflower.jar https://github.com/Vineflower/vineflower/releases/download/1.10.1/vineflower-1.10.1.jar
 fi
 
-# Download FreeJ2ME-Plus if needed
+# Download FreeJ2ME-Plus if needed (nightly release zip contains freej2me_plus.jar)
 if [ ! -f env/freej2me/freej2me_plus.jar ]; then
   echo "Downloading FreeJ2ME-Plus (for classpath)..."
-  curl -fsSL -o env/freej2me/freej2me_plus.jar https://github.com/TASEmulators/freej2me-plus/releases/download/continuous/freej2me_plus.jar
+  FJ_URL="https://github.com/TASEmulators/freej2me-plus/releases/download/nightlies/freej2me_plus-nightly.zip"
+  if curl -fsSL -o env/freej2me/freej2me_plus.zip "$FJ_URL"; then
+    unzip -q -o env/freej2me/freej2me_plus.zip -d env/freej2me/
+    rm -f env/freej2me/freej2me_plus.zip
+  else
+    # Fallback via GitHub API
+    API_URL=$(curl -s https://api.github.com/repos/TASEmulators/freej2me-plus/releases | grep "browser_download_url.*freej2me.*\.zip" | head -1 | cut -d '"' -f 4)
+    curl -fsSL -o env/freej2me/freej2me_plus.zip "$API_URL"
+    unzip -q -o env/freej2me/freej2me_plus.zip -d env/freej2me/
+    rm -f env/freej2me/freej2me_plus.zip
+  fi
+
+  # If extracted jar has another name or is in a subfolder, normalize it:
+  if [ ! -f env/freej2me/freej2me_plus.jar ]; then
+    FOUND_JAR=$(find env/freej2me -type f -name "*freej2me*.jar" | head -1)
+    if [ -n "$FOUND_JAR" ]; then
+      cp "$FOUND_JAR" env/freej2me/freej2me_plus.jar
+    fi
+  fi
+fi
+
+if [ ! -f env/freej2me/freej2me_plus.jar ]; then
+  echo "Error: Failed to obtain env/freej2me/freej2me_plus.jar" >&2
+  exit 1
 fi
 
 # [1/3] Decompile
@@ -70,4 +93,3 @@ java \
   "${SRCS[@]}"
 
 echo "Sources successfully generated in port/src/game/gen."
-
