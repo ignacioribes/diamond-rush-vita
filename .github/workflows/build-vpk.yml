@@ -93,7 +93,7 @@ jobs:
           rm -rf "$VITASDK"
           curl -fsSL https://github.com/vitasdk/vdpm/releases/latest/download/bootstrap-vitasdk.sh | bash
           export PATH="$VITASDK/bin:$PATH"
-          vdpm install zlib libpng libogg libvorbis flac libmikmod mpg123 opus opusfile sdl2 sdl2_mixer
+          yes | vdpm install --force zlib libpng libogg libvorbis flac libmikmod mpg123 opus opusfile sdl2 sdl2_mixer
 
       - name: Prepare game sources
         run: |
