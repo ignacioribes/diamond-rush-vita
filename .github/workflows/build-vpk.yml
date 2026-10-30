@@ -74,19 +74,23 @@ jobs:
           fi
           echo "Jar verified successfully."
 
+      - name: Set VitaSDK environment variables
+        run: |
+          echo "VITASDK=$HOME/vitasdk" >> $GITHUB_ENV
+          echo "$HOME/vitasdk/bin" >> $GITHUB_PATH
+
       - name: Cache VitaSDK
         id: cache-vitasdk
         uses: actions/cache@v4
         with:
-          path: /usr/local/vitasdk
-          key: vitasdk-ubuntu-${{ runner.os }}-v1
+          path: /home/runner/vitasdk
+          key: vitasdk-ubuntu-${{ runner.os }}-v2
 
       - name: Install VitaSDK & Libraries
         if: steps.cache-vitasdk.outputs.cache-hit != 'true'
         run: |
-          export VITASDK=/usr/local/vitasdk
-          sudo mkdir -p $VITASDK
-          sudo chown -R $USER:$USER $VITASDK
+          export VITASDK="$HOME/vitasdk"
+          rm -rf "$VITASDK"
           curl -fsSL https://github.com/vitasdk/vdpm/releases/latest/download/bootstrap-vitasdk.sh | bash
           export PATH="$VITASDK/bin:$PATH"
           vdpm install zlib libpng libogg libvorbis flac libmikmod mpg123 opus opusfile sdl2 sdl2_mixer
@@ -98,8 +102,6 @@ jobs:
 
       - name: Build Vita .vpk
         run: |
-          export VITASDK=/usr/local/vitasdk
-          export PATH="$VITASDK/bin:$PATH"
           chmod +x build.sh
           bash build.sh vita
 
