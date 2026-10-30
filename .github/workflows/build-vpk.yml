@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       jar_url:
-        description: 'Direct download URL for Diamond-Rush_J2ME_EN_v104-Nokia-N6101.jar (optional)'
+        description: 'Direct download URL for the .jar (e.g. Dropbox/Drive/Mediafire direct link)'
         required: false
         type: string
-      jar_base64:
-        description: 'Base64 string of the .jar (optional, or use secret JAR_BASE64)'
+      jar_password:
+        description: 'Decryption password for game.enc (if not using secret JAR_PASSWORD)'
         required: false
         type: string
   push:
@@ -51,20 +51,18 @@ jobs:
       - name: Obtain game jar
         run: |
           JAR_NAME="Diamond-Rush_J2ME_EN_v104-Nokia-N6101.jar"
+          PASSWORD="${{ secrets.JAR_PASSWORD || inputs.jar_password }}"
 
           if [ -f "$JAR_NAME" ]; then
-            echo "Found $JAR_NAME in repository workspace."
-          elif [ -n "${{ inputs.jar_base64 }}" ]; then
-            echo "Extracting jar from workflow input 'jar_base64'..."
-            echo "${{ inputs.jar_base64 }}" | base64 -d > "$JAR_NAME"
-          elif [ -n "${{ secrets.JAR_BASE64 }}" ]; then
-            echo "Extracting jar from secret 'JAR_BASE64'..."
-            echo "${{ secrets.JAR_BASE64 }}" | base64 -d > "$JAR_NAME"
+            echo "Found $JAR_NAME directly in repository."
+          elif [ -f "game.enc" ] && [ -n "$PASSWORD" ]; then
+            echo "Decrypting game.enc using provided password..."
+            openssl enc -d -aes-256-cbc -pbkdf2 -in game.enc -out "$JAR_NAME" -k "$PASSWORD"
           elif [ -n "${{ inputs.jar_url }}" ]; then
-            echo "Downloading jar from provided URL..."
+            echo "Downloading jar from URL..."
             curl -fsSL -o "$JAR_NAME" "${{ inputs.jar_url }}"
           else
-            echo "::error::Game jar not found! Please set JAR_BASE64 in Repository Secrets or provide it via workflow inputs."
+            echo "::error::Game jar not found! Options: 1) Commit encrypted game.enc and set JAR_PASSWORD secret, 2) Provide jar_url in workflow inputs, or 3) Commit the .jar directly if repo is private."
             exit 1
           fi
 
@@ -111,4 +109,3 @@ jobs:
           name: diamondrush-vpk
           path: out/diamondrush.vpk
           if-no-files-found: error
-
